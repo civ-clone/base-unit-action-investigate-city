@@ -2,14 +2,22 @@ import {
   RuleRegistry,
   instance as ruleRegistryInstance,
 } from '@civ-clone/core-rule/RuleRegistry';
+import { CAUGHT_CHECK, ORDINARY } from '@civ-clone/base-unit-agent/lib/escape';
 import Action from '@civ-clone/core-unit/Action';
 import City from '@civ-clone/core-city/City';
 import CityInvestigated from './Rules/CityInvestigated';
 import Moved from '@civ-clone/core-unit/Rules/Moved';
 import Tile from '@civ-clone/core-world/Tile';
 import Unit from '@civ-clone/core-unit/Unit';
+import { agentSurvives } from '@civ-clone/base-unit-agent/lib/mission';
 
-/** A Diplomat investigates `city()`. What its owner learns is up to the `CityInvestigated` rules. The Diplomat is used up when the city is investigated. */
+/**
+ * A Diplomat investigates `city()`. What its owner learns is up to the `CityInvestigated` rules.
+ *
+ * Before the mission, the Diplomat must survive a caught check (base-unit-agent's `AgentSurvives` with
+ * `CAUGHT_CHECK`); one that doesn't is destroyed and the city isn't investigated. Once the city is investigated, it is
+ * used up unless it survives an `ORDINARY` check. With no `AgentSurvives` rules, the check passes and it is used up.
+ */
 export class InvestigateCity extends Action {
   protected _city: City;
 
@@ -43,9 +51,20 @@ export class InvestigateCity extends Action {
   }
 
   perform(): void {
+    const unit = this.unit(),
+      mission = this as unknown as Action;
+
+    if (!agentSurvives(unit, mission, CAUGHT_CHECK, this.ruleRegistry())) {
+      this.ruleRegistry().process(Moved, unit, mission);
+
+      unit.destroy();
+
+      return;
+    }
+
     const results = this.ruleRegistry().process(
       CityInvestigated,
-      this.unit(),
+      unit,
       this._city
     );
 
@@ -53,9 +72,11 @@ export class InvestigateCity extends Action {
       return;
     }
 
-    this.ruleRegistry().process(Moved, this.unit(), this as unknown as Action);
+    this.ruleRegistry().process(Moved, unit, mission);
 
-    this.unit().destroy();
+    if (!agentSurvives(unit, mission, ORDINARY, this.ruleRegistry())) {
+      unit.destroy();
+    }
   }
 }
 
