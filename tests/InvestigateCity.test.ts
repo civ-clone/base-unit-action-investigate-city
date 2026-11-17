@@ -39,7 +39,11 @@ export const setUp = (answer: boolean | null) => {
     ),
     new Destroyed(
       new Effect((destroyed: Unit, by: Player | null): void => {
-        log.push(`destroyed ${destroyed === unit} ${by}`);
+        log.push(
+          `destroyed ${destroyed === unit} ${
+            by === null ? null : by === host ? 'host' : 'other'
+          }`
+        );
       })
     )
   );
@@ -128,7 +132,7 @@ describe('InvestigateCity', (): void => {
       ]);
     });
 
-    it('destroys a Diplomat that is caught, before the mission', (): void => {
+    it("destroys a Diplomat that is caught before the mission, by the city's owner, with no `Moved`", (): void => {
       const set = setUp(true);
 
       survives(set, (mode: EscapeMode): boolean => mode !== -1);
@@ -136,8 +140,7 @@ describe('InvestigateCity', (): void => {
 
       expect(set.log).to.deep.equal([
         'asked true true -1',
-        'moved true true',
-        'destroyed true null',
+        'destroyed true host',
       ]);
     });
 

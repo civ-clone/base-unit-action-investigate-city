@@ -6,9 +6,10 @@ import Unit from '@civ-clone/core-unit/Unit';
 /**
  * A Diplomat investigates `city()`. What its owner learns is up to the `CityInvestigated` rules.
  *
- * Before the mission, the Diplomat must survive a caught check (base-unit-agent's `AgentSurvives` with
- * `CAUGHT_CHECK`); one that doesn't is destroyed and the city isn't investigated. Once the city is investigated, it is
- * used up unless it survives an `ORDINARY` check. With no `AgentSurvives` rules, the check passes and it is used up.
+ * The mission asks base-unit-agent's seams (its README): `MissionMode` (default `ORDINARY`), then the caught check
+ * (`AgentSurvives` with `CAUGHT_CHECK`; a caught Diplomat goes to `AgentLost` and is destroyed by the city's owner,
+ * with no `Moved`), then the mission, `Moved`, and `AgentSurvives` with the resolved mode (a Diplomat that doesn't
+ * survive goes to `AgentLost` and is destroyed as before). With none of those rules, it is used up as before.
  */
 export declare class InvestigateCity extends Action {
   protected _city: City;
