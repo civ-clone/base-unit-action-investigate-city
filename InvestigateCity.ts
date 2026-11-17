@@ -2,14 +2,27 @@ import {
   RuleRegistry,
   instance as ruleRegistryInstance,
 } from '@civ-clone/core-rule/RuleRegistry';
+import { CAUGHT_CHECK, ORDINARY } from '@civ-clone/base-unit-agent/lib/escape';
 import Action from '@civ-clone/core-unit/Action';
 import City from '@civ-clone/core-city/City';
 import CityInvestigated from './Rules/CityInvestigated';
 import Moved from '@civ-clone/core-unit/Rules/Moved';
 import Tile from '@civ-clone/core-world/Tile';
 import Unit from '@civ-clone/core-unit/Unit';
+import {
+  agentSurvives,
+  loseAgent,
+  missionMode,
+} from '@civ-clone/base-unit-agent/lib/mission';
 
-/** A Diplomat investigates `city()`. What its owner learns is up to the `CityInvestigated` rules. The Diplomat is used up when the city is investigated. */
+/**
+ * A Diplomat investigates `city()`. What its owner learns is up to the `CityInvestigated` rules.
+ *
+ * The mission asks base-unit-agent's seams (its README): `MissionMode` (default `ORDINARY`), then the caught check
+ * (`AgentSurvives` with `CAUGHT_CHECK`; a caught Diplomat goes to `AgentLost` and is destroyed by the city's owner,
+ * with no `Moved`), then the mission, `Moved`, and `AgentSurvives` with the resolved mode (a Diplomat that doesn't
+ * survive goes to `AgentLost` and is destroyed as before). With none of those rules, it is used up as before.
+ */
 export class InvestigateCity extends Action {
   protected _city: City;
 
@@ -43,9 +56,36 @@ export class InvestigateCity extends Action {
   }
 
   perform(): void {
+    const unit = this.unit(),
+      mission = this as unknown as Action;
+
+    const mode = missionMode(unit, mission, ORDINARY, this.ruleRegistry());
+
+    if (
+      !agentSurvives(
+        unit,
+        mission,
+        CAUGHT_CHECK,
+        this.ruleRegistry(),
+        undefined,
+        mode
+      )
+    ) {
+      loseAgent(
+        unit,
+        this._city,
+        mission,
+        true,
+        this.ruleRegistry(),
+        this._city.player()
+      );
+
+      return;
+    }
+
     const results = this.ruleRegistry().process(
       CityInvestigated,
-      this.unit(),
+      unit,
       this._city
     );
 
@@ -53,9 +93,11 @@ export class InvestigateCity extends Action {
       return;
     }
 
-    this.ruleRegistry().process(Moved, this.unit(), this as unknown as Action);
+    this.ruleRegistry().process(Moved, unit, mission);
 
-    this.unit().destroy();
+    if (!agentSurvives(unit, mission, mode, this.ruleRegistry())) {
+      loseAgent(unit, this._city, mission, false, this.ruleRegistry());
+    }
   }
 }
 
